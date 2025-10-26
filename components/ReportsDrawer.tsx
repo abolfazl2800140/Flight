@@ -7,79 +7,93 @@ import { TrashIcon } from './icons/TrashIcon';
 import AddReportModal from './AddReportModal';
 
 interface ReportsDrawerProps {
-  isOpen: boolean;
-  onClose: () => void;
-  reports: Report[];
-  onAddReport: (reportInput: ReportInput) => void;
-  onDeleteReport: (reportId: string) => void;
+    isOpen: boolean;
+    onClose: () => void;
+    reports: Report[];
+    onAddReport: (reportInput: ReportInput) => void;
+    onDeleteReport: (reportId: string) => void;
 }
 
-const ReportItem: React.FC<{ report: Report; onDelete: (id: string) => void }> = ({ report, onDelete }) => {
-    const { data, timestamp, _id, status } = report;
-    const { region, analysis_period_hours, final_assessment } = data;
+const getStatusStyles = (status: "safe" | "caution" | "unsafe") => {
+    switch (status) {
+        case "safe":
+            return {
+                text: "ایمن",
+                icon: "✅",
+                color: "border-green-500/50 bg-green-500/10 text-green-300",
+            };
+        case "caution":
+            return {
+                text: "احتیاط",
+                icon: "⚠️",
+                color: "border-yellow-500/50 bg-yellow-500/10 text-yellow-300",
+            };
+        case "unsafe":
+            return {
+                text: "ناامن",
+                icon: "❌",
+                color: "border-red-500/50 bg-red-500/10 text-red-300",
+            };
+    }
+};
 
-    const statusClasses = {
-        completed: 'bg-green-500',
-        processing: 'bg-yellow-500 animate-pulse',
-        failed: 'bg-red-500',
-    };
-
-    const statusText = {
-        completed: 'تکمیل شده',
-        processing: 'در حال پردازش',
-        failed: 'ناموفق',
-    };
-
-    const assessmentStatusText = {
-        safe: 'ایمن',
-        caution: 'احتیاط',
-        unsafe: 'ناامن',
-    };
-
-     const assessmentStatusColor = {
-        safe: 'text-green-400',
-        caution: 'text-yellow-400',
-        unsafe: 'text-red-400',
-    };
+const ReportCard: React.FC<{ report: Report; onDelete: (id: string) => void }> = ({ report, onDelete }) => {
+    const assessment = report.data.final_assessment;
+    const statusStyle = getStatusStyles(assessment.overall_status);
+    const region = report.data.region;
 
     return (
-        <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 space-y-3">
-            <div className="flex justify-between items-start">
-                <div>
-                    <p className="text-sm text-gray-400">شناسه گزارش</p>
-                    <p className="font-mono text-xs">{_id}</p>
-                </div>
-                <button 
-                    onClick={() => onDelete(_id)} 
-                    className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                    title="حذف گزارش"
-                >
-                    <TrashIcon className="w-5 h-5" />
-                </button>
-            </div>
-            <div className="text-sm space-y-2">
-                <p>
-                    <span className="text-gray-400">محدوده:</span>
-                    <span className="font-mono text-xs ml-2" dir="ltr">
-                        [{region.coordinates.lat1.toFixed(2)}, {region.coordinates.lng1.toFixed(2)}] to [{region.coordinates.lat2.toFixed(2)}, {region.coordinates.lng2.toFixed(2)}]
-                    </span>
-                </p>
-                <p><span className="text-gray-400">دوره تحلیل:</span> {analysis_period_hours.toLocaleString('fa-IR')} ساعت</p>
-                <p><span className="text-gray-400">تاریخ ایجاد:</span> {new Date(timestamp).toLocaleString('fa-IR')}</p>
-                 {status === 'completed' && (
-                    <p>
-                        <span className="text-gray-400">ارزیابی نهایی:</span> 
-                        <span className={`font-bold ${assessmentStatusColor[final_assessment.overall_status]}`}>
-                            {` ${assessmentStatusText[final_assessment.overall_status]}`}
-                        </span>
+        <div className={`bg-gray-800 rounded-lg p-4 border ${statusStyle.color} transition-all duration-300`}>
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+                <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                        <span className="text-2xl">{statusStyle.icon}</span>
+                        <h3 className="text-lg font-bold">ارزیابی کلی: {statusStyle.text}</h3>
+                    </div>
+                     <p className="text-xs text-gray-400 mt-2">
+                        شناسه تحلیل: <span className="font-mono text-gray-300">{report.analysis_id}</span>
                     </p>
-                )}
-            </div>
-             <div className="flex items-center justify-end">
-                <div className={`flex items-center gap-2 text-xs font-bold px-2 py-1 rounded-full text-white ${statusClasses[status]}`}>
-                    <span className="w-2 h-2 rounded-full bg-white/50"></span>
-                    <span>{statusText[status]}</span>
                 </div>
+                <div className="flex-shrink-0 flex items-center gap-2 text-xs">
+                    <span className={`px-2 py-1 font-medium rounded-full bg-gray-700`}>
+                       اطمینان: {assessment.confidence_level}
+                    </span>
+                     <span className={`px-2 py-1 font-medium rounded-full ${report.status === 'completed' ? 'bg-blue-500/20 text-blue-300' : 'bg-gray-700'}`}>
+                        وضعیت: {report.status}
+                    </span>
+                </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-gray-700 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                    <p className="text-gray-400 text-xs">نقطه شروع</p>
+                    <p className="font-mono text-cyan-300 text-xs">{region.coordinates.lat1.toFixed(2)}, {region.coordinates.lng1.toFixed(2)}</p>
+                </div>
+                 <div>
+                    <p className="text-gray-400 text-xs">نقطه پایان</p>
+                    <p className="font-mono text-cyan-300 text-xs">{region.coordinates.lat2.toFixed(2)}, {region.coordinates.lng2.toFixed(2)}</p>
+                </div>
+                <div>
+                    <p className="text-gray-400 text-xs">مساحت منطقه</p>
+                    <p className="font-mono text-cyan-300">{region.area_km2.toLocaleString('fa-IR')} km²</p>
+                </div>
+                 <div>
+                    <p className="text-gray-400 text-xs">بازه زمانی</p>
+                    <p className="font-mono text-cyan-300">{report.data.analysis_period_hours} ساعت</p>
+                </div>
+            </div>
+            
+             <div className="mt-3 pt-3 border-t border-gray-700 flex items-center justify-between text-xs">
+                 <p className="text-gray-500">
+                    ایجاد شده در: {new Date(report.timestamp).toLocaleString('fa-IR')}
+                 </p>
+                 <button
+                    onClick={() => onDelete(report._id)}
+                    className="text-gray-400 hover:text-red-400 transition-colors"
+                    title="حذف گزارش"
+                 >
+                    <TrashIcon className="w-4 h-4" />
+                 </button>
             </div>
         </div>
     );
@@ -87,67 +101,65 @@ const ReportItem: React.FC<{ report: Report; onDelete: (id: string) => void }> =
 
 
 const ReportsDrawer: React.FC<ReportsDrawerProps> = ({ isOpen, onClose, reports, onAddReport, onDeleteReport }) => {
-    const [isModalOpen, setIsModalOpen] = useState(false);
-
-    const handleAddReport = (reportInput: ReportInput) => {
+    const [isAddModalOpen, setAddModalOpen] = useState(false);
+    
+    const handleAdd = (reportInput: ReportInput) => {
         onAddReport(reportInput);
-        setIsModalOpen(false);
+        setAddModalOpen(false);
     };
 
-  return (
-    <>
-    <div
-      className={`fixed inset-0 bg-gray-900 z-40 transition-opacity duration-300 ease-in-out ${
-        isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-      }`}
-    >
-      <div className="flex flex-col h-full text-white p-4 max-w-7xl mx-auto w-full">
-        {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between pb-4 border-b border-gray-700">
-          <div className="flex items-center gap-3">
-            <BookOpenIcon className="w-6 h-6 text-cyan-400" />
-            <h2 className="text-xl font-bold">گزارشات</h2>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-            <CloseIcon className="w-6 h-6" />
-          </button>
-        </div>
+    if (!isOpen) return null;
 
-        {/* Add Report Button */}
-        <div className="flex-shrink-0 py-4">
-            <button
-                onClick={() => setIsModalOpen(true)}
-                className="w-full flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors"
-            >
-                <PlusIcon className="w-5 h-5" />
-                <span>افزودن گزارش جدید</span>
-            </button>
-        </div>
+    return (
+        <>
+            <div className="fixed inset-0 bg-gray-900 z-40 flex flex-col animate-fade-in-fast" role="dialog" aria-modal="true">
+                <div className="w-full max-w-6xl mx-auto flex flex-col h-full p-4 sm:p-6 lg:p-8">
+                    {/* Header */}
+                    <header className="flex-shrink-0 flex items-center justify-between pb-4 border-b border-gray-700">
+                        <div className="flex items-center gap-3">
+                            <BookOpenIcon className="w-6 h-6 text-cyan-400" />
+                            <h2 className="text-xl font-bold">گزارشات پروازی</h2>
+                        </div>
+                        <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+                            <CloseIcon className="w-6 h-6" />
+                        </button>
+                    </header>
+                    
+                    {/* Add Report Button */}
+                    <div className="flex-shrink-0 py-4">
+                         <button
+                            onClick={() => setAddModalOpen(true)}
+                            className="w-full flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-4 rounded-md transition-colors"
+                        >
+                            <PlusIcon className="w-5 h-5" />
+                            <span>افزودن گزارش جدید</span>
+                        </button>
+                    </div>
 
-        {/* Reports List */}
-        <div className="flex-grow space-y-4 overflow-y-auto pb-4">
-          {reports.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400 text-center">
-                <BookOpenIcon className="w-16 h-16 opacity-20" />
-                <p className="mt-4">هیچ گزارشی یافت نشد.</p>
-                <p className="text-sm">برای شروع، یک گزارش جدید اضافه کنید.</p>
+                    {/* Content */}
+                    <main className="flex-grow overflow-y-auto pr-2 -mr-2">
+                        {reports.length === 0 ? (
+                             <div className="text-center text-gray-400 py-20">
+                                <p>هیچ گزارشی یافت نشد.</p>
+                                <p className="text-sm mt-1">برای شروع، یک گزارش جدید اضافه کنید.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {reports.map(report => (
+                                    <ReportCard key={report._id} report={report} onDelete={onDeleteReport} />
+                                ))}
+                            </div>
+                        )}
+                    </main>
+                </div>
             </div>
-          ) : (
-            reports.map(report => (
-                <ReportItem key={report._id} report={report} onDelete={onDeleteReport} />
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-
-    <AddReportModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onAdd={handleAddReport}
-    />
-    </>
-  );
+            <AddReportModal 
+                isOpen={isAddModalOpen} 
+                onClose={() => setAddModalOpen(false)}
+                onAdd={handleAdd}
+            />
+        </>
+    );
 };
 
 export default ReportsDrawer;

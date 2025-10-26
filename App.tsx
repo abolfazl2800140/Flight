@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import Map from './components/Map';
-import FlightInfoPanel from './components/FlightInfoPanel';
 import Header from './components/Header';
+import FlightInfoPanel from './components/FlightInfoPanel';
 import AssistantDrawer from './components/AssistantDrawer';
 import FilterDrawer from './components/FilterDrawer';
 import ReportsDrawer from './components/ReportsDrawer';
@@ -17,14 +17,37 @@ const INITIAL_FILTERS: Filters = {
   airline: '',
 };
 
+const MOCK_REPORTS: Report[] = [
+    {
+        _id: '68f8eadd6835a804b693f85e',
+        analysis_id: 'ba40bd81-f781-460f-bf91-73982a5ab1fd',
+        data: {
+            analysis_period_hours: 24,
+            analysis_timestamp: new Date(Date.now() - 86400000).toISOString(),
+            final_assessment: { confidence_level: "high", overall_status: "safe" },
+            region: {
+                area_km2: 6117191.95,
+                center: [38.19, -11.29],
+                coordinates: { lat1: 35.6762, lat2: 40.7128, lng1: 51.4214, lng2: -74.006 }
+            }
+        },
+        status: "completed",
+        timestamp: new Date(Date.now() - 86400000).toISOString(),
+        updated_at: new Date(Date.now() - 86300000).toISOString(),
+    }
+];
+
+
 function App() {
   const { flights, isLoading, error } = useFlightData();
   const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
-  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isReportsOpen, setIsReportsOpen] = useState(false);
+  
+  const [isAssistantOpen, setAssistantOpen] = useState(false);
+  const [isFiltersOpen, setFiltersOpen] = useState(false);
+  const [isReportsOpen, setReportsOpen] = useState(false);
+  
   const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
-  const [reports, setReports] = useState<Report[]>([]);
+  const [reports, setReports] = useState<Report[]>(MOCK_REPORTS);
 
   const handleSelectFlight = useCallback((flight: Flight) => {
     setSelectedFlight(flight);
@@ -33,52 +56,59 @@ function App() {
   const handleClosePanel = useCallback(() => {
     setSelectedFlight(null);
   }, []);
-  
+
+  const resetFilters = useCallback(() => {
+    setFilters(INITIAL_FILTERS);
+  }, []);
+
   const handleAddReport = useCallback((reportInput: ReportInput) => {
-      const newReport: Report = {
-          _id: `rep_${Date.now()}`,
-          analysis_id: `ba40bd81-${Math.random().toString(16).slice(2)}`,
-          data: {
-              analysis_period_hours: Number(reportInput.hours_back),
-              analysis_timestamp: new Date().toISOString(),
-              final_assessment: {
-                  confidence_level: "medium",
-                  overall_status: "safe",
-              },
-              region: {
-                  area_km2: Math.random() * 1000000,
-                  center: [
-                      (Number(reportInput.lat1) + Number(reportInput.lat2)) / 2,
-                      (Number(reportInput.lng1) + Number(reportInput.lng2)) / 2,
-                  ],
-                  coordinates: {
-                      lat1: Number(reportInput.lat1),
-                      lat2: Number(reportInput.lat2),
-                      lng1: Number(reportInput.lng1),
-                      lng2: Number(reportInput.lng2),
-                  }
-              }
-          },
-          status: "completed",
-          timestamp: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-      };
-      setReports(prev => [newReport, ...prev]);
+    const newReport: Report = {
+        _id: `id_${Date.now()}`,
+        analysis_id: `an_${crypto.randomUUID()}`,
+        data: {
+            analysis_period_hours: reportInput.hours_back as number,
+            analysis_timestamp: new Date().toISOString(),
+            final_assessment: { 
+                confidence_level: Math.random() > 0.66 ? "high" : Math.random() > 0.33 ? "medium" : "low", 
+                overall_status: Math.random() > 0.66 ? "safe" : Math.random() > 0.33 ? "caution" : "unsafe" 
+            },
+            region: {
+                area_km2: Math.floor(Math.random() * 10000000),
+                center: [
+                    ((reportInput.lat1 as number) + (reportInput.lat2 as number))/2, 
+                    ((reportInput.lng1 as number) + (reportInput.lng2 as number))/2
+                ],
+                coordinates: {
+                    lat1: reportInput.lat1 as number,
+                    lat2: reportInput.lat2 as number,
+                    lng1: reportInput.lng1 as number,
+                    lng2: reportInput.lng2 as number,
+                }
+            }
+        },
+        status: "completed",
+        timestamp: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+    };
+    setReports(prev => [newReport, ...prev]);
   }, []);
 
   const handleDeleteReport = useCallback((reportId: string) => {
       setReports(prev => prev.filter(r => r._id !== reportId));
   }, []);
 
+
   const filteredFlights = useMemo(() => {
-    return flights.filter(flight => {
+    return flights.filter(f => {
       const airlineFilter = filters.airline.trim().toUpperCase();
+      const airlineMatch = airlineFilter === '' || f.airline_iata.toUpperCase().includes(airlineFilter) || f.airline_icao.toUpperCase().includes(airlineFilter);
+
       return (
-        flight.altitude >= filters.minAltitude &&
-        flight.altitude <= filters.maxAltitude &&
-        flight.ground_speed >= filters.minSpeed &&
-        flight.ground_speed <= filters.maxSpeed &&
-        (!airlineFilter || flight.airline_iata.toUpperCase().includes(airlineFilter))
+        f.altitude >= filters.minAltitude &&
+        f.altitude <= filters.maxAltitude &&
+        f.ground_speed >= filters.minSpeed &&
+        f.ground_speed <= filters.maxSpeed &&
+        airlineMatch
       );
     });
   }, [flights, filters]);
@@ -88,57 +118,43 @@ function App() {
   }
 
   if (error) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-900 text-red-400">
-        <div className="text-center">
-            <h2 className="text-2xl font-bold mb-2">خطا در بارگذاری داده‌ها</h2>
-            <p>{error}</p>
-        </div>
-      </div>
-    );
+    return <div className="text-white bg-gray-900 h-screen flex items-center justify-center">Error loading data.</div>;
   }
 
   return (
-    <main className="h-screen w-screen bg-gray-900 text-white relative overflow-hidden">
+    <div className="bg-gray-800 text-white h-screen overflow-hidden relative font-sans-fa">
       <Header 
-        onToggleAssistant={() => setIsAssistantOpen(true)}
-        onToggleFilters={() => setIsFilterOpen(true)}
-        onToggleReports={() => setIsReportsOpen(true)}
+        onToggleAssistant={() => setAssistantOpen(prev => !prev)}
+        onToggleFilters={() => setFiltersOpen(prev => !prev)}
+        onToggleReports={() => setReportsOpen(prev => !prev)}
         flightCount={filteredFlights.length}
       />
       
-      <Map
-        flights={filteredFlights}
-        onSelectFlight={handleSelectFlight}
-        selectedFlightId={selectedFlight?.unique_key || null}
-      />
-      
-      <FlightInfoPanel
-        flight={selectedFlight}
-        onClose={handleClosePanel}
-      />
+      <main className="h-full pt-16">
+         <Map 
+            flights={filteredFlights}
+            onSelectFlight={handleSelectFlight}
+            selectedFlightId={selectedFlight?.unique_key || null}
+         />
+      </main>
 
-      <AssistantDrawer 
-        isOpen={isAssistantOpen}
-        onClose={() => setIsAssistantOpen(false)}
-      />
-
-      <FilterDrawer
-        isOpen={isFilterOpen}
-        onClose={() => setIsFilterOpen(false)}
+      <FlightInfoPanel flight={selectedFlight} onClose={handleClosePanel} />
+      <AssistantDrawer isOpen={isAssistantOpen} onClose={() => setAssistantOpen(false)} />
+      <FilterDrawer 
+        isOpen={isFiltersOpen} 
+        onClose={() => setFiltersOpen(false)}
         filters={filters}
         setFilters={setFilters}
-        onReset={() => setFilters(INITIAL_FILTERS)}
+        onReset={resetFilters}
       />
-
-      <ReportsDrawer
-        isOpen={isReportsOpen}
-        onClose={() => setIsReportsOpen(false)}
+      <ReportsDrawer 
+        isOpen={isReportsOpen} 
+        onClose={() => setReportsOpen(false)}
         reports={reports}
         onAddReport={handleAddReport}
         onDeleteReport={handleDeleteReport}
       />
-    </main>
+    </div>
   );
 }
 
