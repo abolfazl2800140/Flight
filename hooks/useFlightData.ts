@@ -5,41 +5,56 @@ const FLIGHT_COUNT = 20000;
 
 const generateInitialFlights = (count: number): Flight[] => {
   const flights: Flight[] = [];
-  const origins = [
-    { city: 'New York', code: 'JFK' }, { city: 'London', code: 'LHR' },
-    { city: 'Tokyo', code: 'HND' }, { city: 'Dubai', code: 'DXB' },
-    { city: 'Los Angeles', code: 'LAX' }, { city: 'Singapore', code: 'SIN' },
-    { city: 'Paris', code: 'CDG' }, { city: 'Sydney', code: 'SYD' },
-  ];
+  
+  const aircraftCodes = ['A21N', 'A320', 'B738', 'B77W', 'A359', 'B789', 'A388'];
   const airlines = [
-    { name: 'American', code: 'AA' }, { name: 'Emirates', code: 'EK' },
-    { name: 'Lufthansa', code: 'LH' }, { name: 'Qantas', code: 'QF' },
-    { name: 'Singapore', code: 'SQ' }, { name: 'British', code: 'BA' },
+    { iata: 'TP', icao: 'TAP' }, { iata: 'BA', icao: 'BAW' },
+    { iata: 'AF', icao: 'AFR' }, { iata: 'DL', icao: 'DAL' },
+    { iata: 'EK', icao: 'UAE' }, { iata: 'LH', icao: 'DLH' },
+    { iata: 'QF', icao: 'QFA' }, { iata: 'SQ', icao: 'SIA' },
   ];
-  const aircraftTypes = ['B777', 'A380', 'B747', 'A350', 'B787'];
+  const airports = ['YUL', 'LIS', 'LHR', 'CDG', 'JFK', 'DXB', 'LAX', 'HND', 'SYD', 'SIN'];
 
   const randomLetter = () => String.fromCharCode(65 + Math.floor(Math.random() * 26));
   const randomNumber = () => Math.floor(Math.random() * 10);
+  const randomHex = (len: number) => [...Array(len)].map(() => Math.floor(Math.random() * 16).toString(16)).join('').toUpperCase();
 
   for (let i = 0; i < count; i++) {
-    const origin = origins[Math.floor(Math.random() * origins.length)];
-    const destination = origins[Math.floor(Math.random() * origins.length)];
     const airline = airlines[Math.floor(Math.random() * airlines.length)];
-    
+    const origin = airports[Math.floor(Math.random() * airports.length)];
+    let destination = airports[Math.floor(Math.random() * airports.length)];
+    while (destination === origin) {
+        destination = airports[Math.floor(Math.random() * airports.length)];
+    }
+    const now = new Date();
+
+    const uniqueId = `id_${randomHex(8)}`;
+
     flights.push({
-      id: `FL${1000 + i}`,
-      callsign: `${airline.code}${100 + i}`,
-      flightNumber: `${airline.code}${Math.floor(Math.random() * 900) + 100}`,
-      airline: `${airline.name} Airlines`,
-      aircraftType: aircraftTypes[Math.floor(Math.random() * aircraftTypes.length)],
+      aircraft_code: aircraftCodes[Math.floor(Math.random() * aircraftCodes.length)],
+      airline_iata: airline.iata,
+      airline_icao: airline.icao,
+      altitude: Math.floor(Math.random() * 15000) + 25000,
+      callsign: `${airline.icao}${Math.floor(Math.random() * 900) + 100}`,
+      destination_airport_iata: destination,
+      destination_airport_icao: null,
+      flight_id: "",
+      global_unique_key: uniqueId,
+      ground_speed: Math.floor(Math.random() * 100) + 400,
+      icao_24bit: randomHex(6),
+      inserted_at: now.toUTCString(),
+      latitude: Math.random() * 170 - 85,
+      longitude: Math.random() * 360 - 180,
+      on_ground: 0,
+      origin_airport_iata: origin,
+      origin_airport_icao: null,
       registration: `${randomLetter()}${randomLetter()}-${randomLetter()}${randomLetter()}${randomLetter()}`,
-      origin,
-      destination,
-      lat: Math.random() * 170 - 85, // Latitude from -85 to 85
-      lon: Math.random() * 360 - 180, // Longitude from -180 to 180
-      altitude: Math.floor(Math.random() * 20000) + 20000, // 20k to 40k feet
-      speed: Math.floor(Math.random() * 100) + 450, // 450 to 550 knots
-      heading: Math.random() * 360,
+      squawk: "",
+      timestamp: now.toUTCString(),
+      track: Math.random() * 360,
+      unique_key: uniqueId,
+      vertical_speed: 0,
+      zone: "europe_sub3_3"
     });
   }
   return flights;

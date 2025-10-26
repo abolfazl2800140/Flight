@@ -1,21 +1,26 @@
 export interface Flight {
-  id: string;
+  aircraft_code: string;
+  airline_iata: string;
+  airline_icao: string;
+  altitude: number;
   callsign: string;
-  flightNumber: string;
-  airline: string;
-  aircraftType: string;
+  destination_airport_iata: string;
+  destination_airport_icao: string | null;
+  flight_id: string;
+  global_unique_key: string;
+  ground_speed: number;
+  icao_24bit: string;
+  inserted_at: string;
+  latitude: number;
+  longitude: number;
+  on_ground: 0 | 1;
+  origin_airport_iata: string;
+  origin_airport_icao: string | null;
   registration: string;
-  origin: {
-    city: string;
-    code: string;
-  };
-  destination: {
-    city: string;
-    code: string;
-  };
-  lat: number;
-  lon: number;
-  altitude: number; // in feet
-  speed: number; // in knots
-  heading: number; // in degrees
+  squawk: string;
+  timestamp: string;
+  track: number | null;
+  unique_key: string;
+  vertical_speed: number;
+  zone: string;
 }

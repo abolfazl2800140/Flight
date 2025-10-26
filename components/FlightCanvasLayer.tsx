@@ -54,7 +54,7 @@ export const FlightCanvasLayer: React.FC<FlightCanvasLayerProps> = ({ flights, o
     
     const visibleFlights: Flight[] = [];
     for (const flight of flights) {
-        if (mapBounds.contains(L.latLng(flight.lat, flight.lon))) {
+        if (mapBounds.contains(L.latLng(flight.latitude, flight.longitude))) {
             visibleFlights.push(flight);
         }
     }
@@ -66,14 +66,14 @@ export const FlightCanvasLayer: React.FC<FlightCanvasLayerProps> = ({ flights, o
     if (visibleFlights.length < 100) {
         // Draw all visible flights as individual planes
         for (const flight of visibleFlights) {
-            const point = map.latLngToContainerPoint(L.latLng(flight.lat, flight.lon));
+            const point = map.latLngToContainerPoint(L.latLng(flight.latitude, flight.longitude));
             renderedFlightsRef.current.push({ x: point.x, y: point.y, flight });
             
             ctx.save();
             ctx.translate(point.x, point.y);
-            ctx.rotate(flight.heading * Math.PI / 180);
+            ctx.rotate(((flight.track ?? 0) * Math.PI) / 180);
 
-            const isSelected = flight.id === selectedFlightId;
+            const isSelected = flight.unique_key === selectedFlightId;
             ctx.fillStyle = isSelected ? '#06b6d4' : 'rgba(255, 255, 255, 0.9)';
             ctx.strokeStyle = isSelected ? '#ffffff' : 'rgba(0, 0, 0, 0.7)';
             ctx.lineWidth = 1;
@@ -93,7 +93,7 @@ export const FlightCanvasLayer: React.FC<FlightCanvasLayerProps> = ({ flights, o
         const clusters = new Map<string, Flight[]>();
 
         for (const flight of visibleFlights) {
-            const point = map.latLngToContainerPoint(L.latLng(flight.lat, flight.lon));
+            const point = map.latLngToContainerPoint(L.latLng(flight.latitude, flight.longitude));
             const key = `${Math.floor(point.x / cellSize)}|${Math.floor(point.y / cellSize)}`;
             if (!clusters.has(key)) {
                 clusters.set(key, []);
@@ -105,7 +105,7 @@ export const FlightCanvasLayer: React.FC<FlightCanvasLayerProps> = ({ flights, o
             if (clusterFlights.length === 0) continue;
             
             if (clusterFlights.length > 1 && zoom < 10) {
-                const clusterBounds = L.latLngBounds(clusterFlights.map(f => [f.lat, f.lon]));
+                const clusterBounds = L.latLngBounds(clusterFlights.map(f => [f.latitude, f.longitude]));
                 const centerPoint = map.latLngToContainerPoint(clusterBounds.getCenter());
                 const count = clusterFlights.length;
                 const radius = 15 + Math.log(count) * 2;
@@ -131,14 +131,14 @@ export const FlightCanvasLayer: React.FC<FlightCanvasLayerProps> = ({ flights, o
                 ctx.fillText(count.toString(), centerPoint.x, centerPoint.y);
             } else {
                 for (const flight of clusterFlights) {
-                    const point = map.latLngToContainerPoint(L.latLng(flight.lat, flight.lon));
+                    const point = map.latLngToContainerPoint(L.latLng(flight.latitude, flight.longitude));
                     renderedFlightsRef.current.push({ x: point.x, y: point.y, flight });
                     
                     ctx.save();
                     ctx.translate(point.x, point.y);
-                    ctx.rotate(flight.heading * Math.PI / 180);
+                    ctx.rotate(((flight.track ?? 0) * Math.PI) / 180);
 
-                    const isSelected = flight.id === selectedFlightId;
+                    const isSelected = flight.unique_key === selectedFlightId;
                     ctx.fillStyle = isSelected ? '#06b6d4' : 'rgba(255, 255, 255, 0.9)';
                     ctx.strokeStyle = isSelected ? '#ffffff' : 'rgba(0, 0, 0, 0.7)';
                     ctx.lineWidth = 1;

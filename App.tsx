@@ -28,7 +28,7 @@ const App: React.FC = () => {
       <Map 
         flights={flights} 
         onSelectFlight={handleSelectFlight} 
-        selectedFlightId={selectedFlight?.id} 
+        selectedFlightId={selectedFlight?.unique_key} 
       />
       
       <FlightInfoPanel 

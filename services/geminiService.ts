@@ -9,9 +9,9 @@ if (!API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-export const getRouteInfo = async (origin: string, destination: string): Promise<string> => {
+export const getRouteInfo = async (originCode: string, destinationCode: string): Promise<string> => {
   try {
-    const prompt = `Provide a brief and interesting summary for a flight from ${origin} to ${destination}. Mention one or two major geographical landmarks, oceans, or famous cities one might see along the way. Keep the summary to 2-4 sentences and adopt a tone suitable for a travel enthusiast.`;
+    const prompt = `Provide a brief and interesting summary for a flight route between airport ${originCode} and ${destinationCode}. Mention one or two major geographical landmarks, oceans, or famous cities one might see along the way. Keep the summary to 2-4 sentences and adopt a tone suitable for a travel enthusiast.`;
     
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',

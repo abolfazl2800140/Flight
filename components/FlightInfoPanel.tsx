@@ -52,7 +52,7 @@ const FlightInfoPanel: React.FC<FlightInfoPanelProps> = ({ flight, onClose }) =>
     setError('');
     setGeminiInfo('');
     try {
-      const info = await getRouteInfo(flight.origin.city, flight.destination.city);
+      const info = await getRouteInfo(flight.origin_airport_iata, flight.destination_airport_iata);
       setGeminiInfo(info);
     } catch (e) {
       setError('Could not retrieve flight route information. Please try again.');
@@ -80,30 +80,27 @@ const FlightInfoPanel: React.FC<FlightInfoPanelProps> = ({ flight, onClose }) =>
             <Section title="Route">
                 <div className="flex items-center justify-between">
                     <div className="text-left">
-                        <p className="text-2xl font-bold">{flight.origin.code}</p>
-                        <p className="text-sm text-gray-300 truncate">{flight.origin.city}</p>
+                        <p className="text-2xl font-bold">{flight.origin_airport_iata}</p>
                     </div>
                     <div className="text-2xl text-gray-500 px-2">&rarr;</div>
                     <div className="text-right">
-                        <p className="text-2xl font-bold">{flight.destination.code}</p>
-                        <p className="text-sm text-gray-300 truncate">{flight.destination.city}</p>
+                        <p className="text-2xl font-bold">{flight.destination_airport_iata}</p>
                     </div>
                 </div>
             </Section>
             
             <Section title="Flight Details">
-                <DetailItem label="Airline" value={flight.airline} />
-                <DetailItem label="Flight No." value={flight.flightNumber} />
-                <DetailItem label="Aircraft" value={flight.aircraftType} />
+                <DetailItem label="Airline" value={flight.airline_iata} />
+                <DetailItem label="Aircraft" value={flight.aircraft_code} />
                 <DetailItem label="Registration" value={flight.registration} />
             </Section>
 
             <Section title="Live Data">
                 <DetailItem label="Altitude" value={flight.altitude.toLocaleString()} unit="ft" />
-                <DetailItem label="Ground Speed" value={flight.speed} unit="kts" />
-                <DetailItem label="Heading" value={flight.heading.toFixed(0)} unit="°" />
-                <DetailItem label="Latitude" value={flight.lat.toFixed(4)} unit="°" />
-                <DetailItem label="Longitude" value={flight.lon.toFixed(4)} unit="°" />
+                <DetailItem label="Ground Speed" value={flight.ground_speed} unit="kts" />
+                <DetailItem label="Heading" value={(flight.track ?? 0).toFixed(0)} unit="°" />
+                <DetailItem label="Latitude" value={flight.latitude.toFixed(4)} unit="°" />
+                <DetailItem label="Longitude" value={flight.longitude.toFixed(4)} unit="°" />
             </Section>
 
             <div className="mt-6">
