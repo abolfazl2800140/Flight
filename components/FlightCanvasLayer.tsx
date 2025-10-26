@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { Flight } from '../types';
@@ -9,190 +9,184 @@ interface FlightCanvasLayerProps {
   selectedFlightId: string | null;
 }
 
-interface DrawnItem {
-    type: 'flight' | 'cluster';
-    center: L.Point; 
-    radius: number;
-    flight?: Flight;
-    clusterFlights?: Flight[];
-    bounds?: L.LatLngBounds; 
+const AIRPLANE_PATH_STRING = "M20.25 12.375L22.5 10.125L12.375 0L10.125 2.25L13.018 5.142L5.803 12.358L2.25 10.125L0 12.375L10.125 22.5L12.375 20.25L8.821 16.696L16.036 9.482L18.928 12.375L20.25 12.375Z";
+const airplanePath = new Path2D(AIRPLANE_PATH_STRING);
+const ICON_SIZE = 14;
+const CLICK_TOLERANCE = ICON_SIZE / 2;
+
+
+// This is a custom Leaflet layer to render flights on canvas for performance
+// We are extending L.Layer and implementing the required methods.
+declare module 'leaflet' {
+    export class CanvasLayer extends Layer {
+        constructor(options?: any);
+        updateFlights(flights: Flight[], selectedFlightId: string | null): void;
+    }
 }
 
-const airplanePath = new Path2D("M21 16V14L13 9V3.5C13 2.67 12.33 2 11.5 2C10.67 2 10 2.67 10 3.5V9L2 14V16L10 13V19L8 20.5V22L11.5 21L15 22V20.5L13 19V13L21 16Z");
+// @ts-ignore
+L.CanvasLayer = L.Layer.extend({
+  initialize: function (options: any) {
+    L.setOptions(this, options);
+  },
 
-const drawAirplane = (ctx: CanvasRenderingContext2D, x: number, y: number, rotation: number, isSelected: boolean) => {
-    const size = 26;
-    const color = isSelected ? '#dc2626' : '#facc15'; // Crimson or Yellow
+  onAdd: function (map: L.Map) {
+    this._map = map;
+    this._canvas = L.DomUtil.create('canvas', 'leaflet-layer');
+    
+    const size = this._map.getSize();
+    this._canvas.width = size.x;
+    this._canvas.height = size.y;
+
+    const animated = this._map.options.zoomAnimation && L.Browser.any3d;
+    L.DomUtil.addClass(this._canvas, 'leaflet-zoom-' + (animated ? 'animated' : 'hide'));
+
+    map.getPanes().overlayPane.appendChild(this._canvas);
+
+    map.on('moveend', this._reset, this);
+    map.on('click', this._onClick, this);
+
+    if (map.options.zoomAnimation && L.Browser.any3d) {
+        map.on('zoomanim', this._animateZoom, this);
+    }
+
+    this._reset();
+  },
+
+  onRemove: function (map: L.Map) {
+    map.getPanes().overlayPane.removeChild(this._canvas);
+    map.off('moveend', this._reset, this);
+    map.off('click', this._onClick, this);
+    if (map.options.zoomAnimation && L.Browser.any3d) {
+      map.off('zoomanim', this._animateZoom, this);
+    }
+  },
+
+  _animateZoom: function(e: L.ZoomAnimEvent) {
+    const scale = this._map.getZoomScale(e.zoom);
+    // @ts-ignore
+    const offset = this._map._getCenterOffset(e.center)._multiplyBy(-scale).subtract(this._map._getMapPanePos());
+
+    if (L.DomUtil.setTransform) {
+        L.DomUtil.setTransform(this._canvas, offset, scale);
+    } else {
+        // @ts-ignore
+        this._canvas.style[L.DomUtil.TRANSFORM] = L.DomUtil.getTranslateString(offset) + ' scale(' + scale + ')';
+    }
+  },
+
+  _reset: function () {
+    const topLeft = this._map.containerPointToLayerPoint([0, 0]);
+    L.DomUtil.setPosition(this._canvas, topLeft);
+
+    const size = this._map.getSize();
+    if (this._canvas.width !== size.x) {
+      this._canvas.width = size.x;
+    }
+    if (this._canvas.height !== size.y) {
+      this._canvas.height = size.y;
+    }
+    
+    this._redraw();
+  },
+  
+  _onClick: function (e: L.LeafletMouseEvent) {
+    const point = e.layerPoint;
+    const flights: Flight[] = this.options.flights || [];
+    
+    // Iterate in reverse to find top-most flight
+    for (let i = flights.length - 1; i >= 0; i--) {
+        const flight = flights[i];
+        const flightPoint = this._map.latLngToLayerPoint([flight.latitude, flight.longitude]);
+        
+        const dx = point.x - flightPoint.x;
+        const dy = point.y - flightPoint.y;
+        
+        if (Math.abs(dx) <= CLICK_TOLERANCE && Math.abs(dy) <= CLICK_TOLERANCE) {
+            this.options.onSelectFlight(flight);
+            return;
+        }
+    }
+  },
+
+  _redraw: function () {
+    const ctx = this._canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+
+    const flights: Flight[] = this.options.flights || [];
+    const bounds = this._map.getPixelBounds();
+    const selectedFlightId = this.options.selectedFlightId;
+
+    flights.forEach(flight => {
+      const pos = this._map.latLngToLayerPoint(new L.LatLng(flight.latitude, flight.longitude));
+      
+      if (bounds.contains(pos)) {
+        this._drawFlight(ctx, pos, flight, selectedFlightId === flight.unique_key);
+      }
+    });
+  },
+
+  _drawFlight: function(ctx: CanvasRenderingContext2D, pos: L.Point, flight: Flight, isSelected: boolean) {
+    const angle = ((flight.track || 0) - 45) * Math.PI / 180; // Icon is naturally rotated -45deg, adjust for that.
 
     ctx.save();
-    
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetX = 2;
-    ctx.shadowOffsetY = 3;
+    ctx.translate(pos.x, pos.y);
+    ctx.rotate(angle);
+    ctx.scale(ICON_SIZE / 24, ICON_SIZE / 24); // Scale based on original SVG viewbox size
+    ctx.translate(-12, -12); // Center the icon
 
-    ctx.translate(x, y);
-    ctx.rotate((rotation + 90) * Math.PI / 180); 
-    
-    const scale = size / 24; 
-    ctx.scale(scale, scale);
-    ctx.translate(-12, -12); 
+    if (isSelected) {
+        ctx.fillStyle = '#fef08a'; // yellow-200
+        ctx.shadowColor = '#fef08a';
+        ctx.shadowBlur = 10;
+    } else {
+        ctx.fillStyle = '#22d3ee'; // cyan-400
+        ctx.shadowColor = 'rgba(0,0,0,0)';
+        ctx.shadowBlur = 0;
+    }
 
-    ctx.fillStyle = color;
     ctx.fill(airplanePath);
-    
     ctx.restore();
-};
-
-const drawCluster = (ctx: CanvasRenderingContext2D, x: number, y: number, count: number, radius: number) => {
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, 2 * Math.PI);
-    ctx.fillStyle = 'rgba(2, 132, 199, 0.7)'; // cyan-600 with opacity
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(14, 165, 233, 1)'; // cyan-500
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    ctx.fillStyle = 'white';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = 'bold 13px Vazirmatn';
-    ctx.fillText(count.toLocaleString('fa-IR'), x, y);
-};
+  },
+  
+  updateFlights: function(flights: Flight[], selectedFlightId: string | null) {
+    this.options.flights = flights;
+    this.options.selectedFlightId = selectedFlightId;
+    this._redraw();
+  },
+});
 
 export const FlightCanvasLayer: React.FC<FlightCanvasLayerProps> = ({ flights, onSelectFlight, selectedFlightId }) => {
   const map = useMap();
-  const canvasLayerRef = useRef<any>(null);
-
-  const drawFlights = useCallback(() => {
-    if (!canvasLayerRef.current) return;
-    const layer = canvasLayerRef.current;
-    const canvas = layer.getCanvas();
-    const ctx = canvas.getContext('2d');
-    const drawnItems: DrawnItem[] = [];
-    layer.drawnItems = drawnItems;
-
-    if (!ctx) return;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const bounds = map.getBounds();
-    const zoom = map.getZoom();
-
-    const visibleFlights = flights.filter(f => bounds.contains([f.latitude, f.longitude]));
-
-    // Clustering logic
-    const CLUSTER_THRESHOLD = 100;
-    const GRID_SIZE = 100; // pixels
-
-    if (visibleFlights.length > CLUSTER_THRESHOLD && zoom < 10) {
-        const grid: { [key: string]: Flight[] } = {};
-        
-        visibleFlights.forEach(flight => {
-            const point = map.latLngToContainerPoint([flight.latitude, flight.longitude]);
-            const key = `${Math.floor(point.x / GRID_SIZE)}_${Math.floor(point.y / GRID_SIZE)}`;
-            if (!grid[key]) {
-                grid[key] = [];
-            }
-            grid[key].push(flight);
-        });
-
-        Object.values(grid).forEach(cluster => {
-            if (cluster.length > 1) {
-                let sumLat = 0, sumLng = 0;
-                cluster.forEach(f => {
-                    sumLat += f.latitude;
-                    sumLng += f.longitude;
-                });
-                const centerLatLng = new L.LatLng(sumLat / cluster.length, sumLng / cluster.length);
-                const centerPoint = map.latLngToContainerPoint(centerLatLng);
-                const radius = Math.min(40, 18 + Math.log2(cluster.length) * 3);
-
-                drawCluster(ctx, centerPoint.x, centerPoint.y, cluster.length, radius);
-                
-                const clusterBounds = L.latLngBounds(cluster.map(f => [f.latitude, f.longitude]));
-
-                drawnItems.push({
-                    type: 'cluster',
-                    center: centerPoint,
-                    radius,
-                    clusterFlights: cluster,
-                    bounds: clusterBounds
-                });
-            } else {
-                const flight = cluster[0];
-                const point = map.latLngToContainerPoint([flight.latitude, flight.longitude]);
-                drawAirplane(ctx, point.x, point.y, flight.track ?? 0, flight.unique_key === selectedFlightId);
-                drawnItems.push({
-                    type: 'flight',
-                    center: point,
-                    radius: 13,
-                    flight
-                });
-            }
-        });
-
-    } else {
-      visibleFlights.forEach(flight => {
-        const point = map.latLngToContainerPoint([flight.latitude, flight.longitude]);
-        drawAirplane(ctx, point.x, point.y, flight.track ?? 0, flight.unique_key === selectedFlightId);
-        drawnItems.push({
-            type: 'flight',
-            center: point,
-            radius: 13,
-            flight
-        });
-      });
-    }
-
-  }, [flights, map, selectedFlightId]);
+  const layerRef = useRef<L.CanvasLayer | null>(null);
 
   useEffect(() => {
-    if (canvasLayerRef.current) {
-        drawFlights();
+    if (!layerRef.current) {
+        // @ts-ignore
+        layerRef.current = new L.CanvasLayer({
+            flights: flights,
+            onSelectFlight: onSelectFlight,
+            selectedFlightId: selectedFlightId,
+        });
+        layerRef.current.addTo(map);
     }
-  }, [drawFlights, flights, selectedFlightId]);
-
-
-  useEffect(() => {
-    const Lany = L as any;
-    if (Lany.canvasLayer && !canvasLayerRef.current) {
-      canvasLayerRef.current = Lany.canvasLayer();
-      
-      canvasLayerRef.current.delegate(
-        {
-          onDrawLayer: (info: any) => {
-            drawFlights();
-          },
-          onClick: (event: L.LeafletMouseEvent, data: any) => {
-            const point = event.containerPoint;
-            const clickedItem = canvasLayerRef.current.drawnItems.find((item: DrawnItem) => {
-                const dx = item.center.x - point.x;
-                const dy = item.center.y - point.y;
-                return dx * dx + dy * dy < item.radius * item.radius;
-            });
-
-            if (clickedItem) {
-                if (clickedItem.type === 'flight' && clickedItem.flight) {
-                    onSelectFlight(clickedItem.flight);
-                } else if (clickedItem.type === 'cluster' && clickedItem.bounds) {
-                    map.flyToBounds(clickedItem.bounds, { padding: [50, 50] });
-                }
-            }
-          }
-        }
-      );
-      
-      canvasLayerRef.current.addTo(map);
-    }
-
+    
+    const currentLayer = layerRef.current;
     return () => {
-      if (canvasLayerRef.current) {
-        canvasLayerRef.current.removeFrom(map);
-        canvasLayerRef.current = null;
-      }
+        if (currentLayer) {
+            currentLayer.removeFrom(map);
+            layerRef.current = null;
+        }
     };
-  }, [map, onSelectFlight, drawFlights]);
+  }, [map, onSelectFlight]);
+
+  useEffect(() => {
+    if (layerRef.current) {
+        layerRef.current.updateFlights(flights, selectedFlightId);
+    }
+  }, [flights, selectedFlightId]);
 
   return null;
 };
