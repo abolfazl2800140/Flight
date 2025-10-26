@@ -16,7 +16,6 @@ const generateInitialFlights = (count: number): Flight[] => {
   const airports = ['YUL', 'LIS', 'LHR', 'CDG', 'JFK', 'DXB', 'LAX', 'HND', 'SYD', 'SIN'];
 
   const randomLetter = () => String.fromCharCode(65 + Math.floor(Math.random() * 26));
-  const randomNumber = () => Math.floor(Math.random() * 10);
   const randomHex = (len: number) => [...Array(len)].map(() => Math.floor(Math.random() * 16).toString(16)).join('').toUpperCase();
 
   for (let i = 0; i < count; i++) {
@@ -27,8 +26,13 @@ const generateInitialFlights = (count: number): Flight[] => {
         destination = airports[Math.floor(Math.random() * airports.length)];
     }
     const now = new Date();
-
     const uniqueId = `id_${randomHex(8)}`;
+    
+    // Generate a truly uniform random point on a sphere.
+    // This avoids clustering at the poles.
+    const longitude = Math.random() * 360 - 180;
+    const latitude = Math.asin(Math.random() * 2 - 1) * (180 / Math.PI);
+
 
     flights.push({
       aircraft_code: aircraftCodes[Math.floor(Math.random() * aircraftCodes.length)],
@@ -43,8 +47,8 @@ const generateInitialFlights = (count: number): Flight[] => {
       ground_speed: Math.floor(Math.random() * 100) + 400,
       icao_24bit: randomHex(6),
       inserted_at: now.toUTCString(),
-      latitude: Math.random() * 170 - 85,
-      longitude: Math.random() * 360 - 180,
+      latitude: latitude,
+      longitude: longitude,
       on_ground: 0,
       origin_airport_iata: origin,
       origin_airport_icao: null,
@@ -54,7 +58,7 @@ const generateInitialFlights = (count: number): Flight[] => {
       track: Math.random() * 360,
       unique_key: uniqueId,
       vertical_speed: 0,
-      zone: "europe_sub3_3"
+      zone: 'global',
     });
   }
   return flights;

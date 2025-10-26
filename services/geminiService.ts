@@ -1,17 +1,12 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-const API_KEY = process.env.API_KEY;
-
-if (!API_KEY) {
-  throw new Error("API_KEY environment variable not set");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+// Fix: Simplified API client initialization to follow guidelines.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getRouteInfo = async (originCode: string, destinationCode: string): Promise<string> => {
   try {
-    const prompt = `Provide a brief and interesting summary for a flight route between airport ${originCode} and ${destinationCode}. Mention one or two major geographical landmarks, oceans, or famous cities one might see along the way. Keep the summary to 2-4 sentences and adopt a tone suitable for a travel enthusiast.`;
+    const prompt = `خلاصه‌ای کوتاه و جالب برای مسیر پروازی بین فرودگاه ${originCode} و ${destinationCode} ارائه بده. به یک یا دو نقطه عطف جغرافیایی، اقیانوس یا شهر معروفی که در طول مسیر ممکن است دیده شود، اشاره کن. خلاصه را در ۲ تا ۴ جمله نگه دار و لحنی مناسب برای یک علاقه‌مند به سفر داشته باش. پاسخ حتما به زبان فارسی باشد.`;
     
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',

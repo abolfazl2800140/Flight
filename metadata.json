@@ -1,5 +1,5 @@
 {
-  "name": "Gemini Flight Tracker",
-  "description": "A sleek, real-time flight tracking application inspired by FlightRadar24, built with React and Tailwind CSS. It features a dynamic world map with simulated air traffic and leverages the Gemini API to provide interesting facts about flight routes.",
+  "name": "رهیاب پرواز جمنای",
+  "description": "یک اپلیکیشن مدرن و بی‌درنگ برای ردیابی پروازها، با الهام از FlightRadar24، که با React و Tailwind CSS ساخته شده است. این برنامه دارای یک نقشه پویای جهان با ترافیک هوایی شبیه‌سازی شده است و از Gemini API برای ارائه اطلاعات جالب درباره مسیرهای پروازی استفاده می‌کند.",
   "requestFramePermissions": []
 }

@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import type { Flight } from '../types';
 import { getRouteInfo } from '../services/geminiService';
 import { CloseIcon } from './icons/CloseIcon';
+import { AirplaneIcon } from './icons/AirplaneIcon';
 import { InfoIcon } from './icons/InfoIcon';
 
 interface FlightInfoPanelProps {
@@ -9,119 +11,140 @@ interface FlightInfoPanelProps {
   onClose: () => void;
 }
 
-interface DetailItemProps {
-    label: string;
-    value: string | number;
-    unit?: string;
-    className?: string;
-}
-
-const DetailItem: React.FC<DetailItemProps> = ({ label, value, unit, className = '' }) => (
-    <div className={`flex justify-between items-baseline ${className}`}>
-        <span className="text-sm text-gray-400">{label}</span>
-        <span className="text-lg font-semibold text-white truncate">
-            {value} <span className="text-sm font-normal text-gray-300">{unit}</span>
-        </span>
-    </div>
-);
-
-const Section: React.FC<{title: string, children: React.ReactNode}> = ({ title, children }) => (
-    <div className="bg-gray-800/50 rounded-lg p-4 mb-4">
-        <h3 className="text-sm font-semibold text-cyan-400 mb-3 border-b border-gray-700 pb-2">{title}</h3>
-        <div className="space-y-3">
-            {children}
-        </div>
-    </div>
+const InfoItem: React.FC<{ label: string; value: string | number }> = ({ label, value }) => (
+  <div>
+    <p className="text-sm text-gray-400">{label}</p>
+    <p className="text-lg font-medium truncate">{value}</p>
+  </div>
 );
 
 
 const FlightInfoPanel: React.FC<FlightInfoPanelProps> = ({ flight, onClose }) => {
-  const [geminiInfo, setGeminiInfo] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>('');
+  const [routeInfo, setRouteInfo] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Reset Gemini info when flight changes
-    setGeminiInfo('');
-    setError('');
-  }, [flight]);
+    if (flight) {
+      const fetchRouteInfo = async () => {
+        setIsLoading(true);
+        setError(null);
+        setRouteInfo(null);
+        try {
+          const info = await getRouteInfo(flight.origin_airport_iata, flight.destination_airport_iata);
+          setRouteInfo(info);
+        } catch (err) {
+          setError('خطا در دریافت اطلاعات مسیر پرواز.');
+          console.error(err);
+        } finally {
+          setIsLoading(false);
+        }
+      };
 
-  const handleGetRouteInfo = async () => {
-    if (!flight) return;
-    setIsLoading(true);
-    setError('');
-    setGeminiInfo('');
-    try {
-      const info = await getRouteInfo(flight.origin_airport_iata, flight.destination_airport_iata);
-      setGeminiInfo(info);
-    } catch (e) {
-      setError('Could not retrieve flight route information. Please try again.');
-      console.error(e);
-    } finally {
-      setIsLoading(false);
+      fetchRouteInfo();
     }
-  };
+  }, [flight]);
 
   if (!flight) {
     return null;
   }
 
   return (
-    <div className={`absolute top-0 right-0 h-full w-full md:w-96 bg-gray-900/80 backdrop-blur-md shadow-2xl z-30 transition-transform duration-500 ease-in-out ${flight ? 'translate-x-0' : 'translate-x-full'}`}>
+    <div
+      className={`absolute top-0 left-0 h-full w-full max-w-sm bg-gray-800/80 backdrop-blur-sm shadow-2xl z-30 transform transition-transform duration-300 ease-in-out ${
+        flight ? 'translate-x-0' : '-translate-x-full'
+      }`}
+      role="dialog"
+      aria-labelledby="flight-info-heading"
+      aria-modal="true"
+    >
       <div className="p-6 h-full flex flex-col">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-cyan-400">{flight.callsign}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+        <header className="flex items-center justify-between pb-4 border-b border-gray-600">
+          <div className="flex items-center gap-3">
+            <AirplaneIcon className="w-6 h-6 text-cyan-400" />
+            <h2 id="flight-info-heading" className="text-xl font-semibold">
+              {flight.airline_iata} {flight.callsign}
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-full hover:bg-gray-700 transition-colors"
+            aria-label="بستن پنل اطلاعات پرواز"
+          >
             <CloseIcon className="w-6 h-6" />
           </button>
-        </div>
+        </header>
 
-        <div className="flex-grow overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
-            <Section title="Route">
-                <div className="flex items-center justify-between">
-                    <div className="text-left">
-                        <p className="text-2xl font-bold">{flight.origin_airport_iata}</p>
-                    </div>
-                    <div className="text-2xl text-gray-500 px-2">&rarr;</div>
-                    <div className="text-right">
-                        <p className="text-2xl font-bold">{flight.destination_airport_iata}</p>
-                    </div>
-                </div>
-            </Section>
-            
-            <Section title="Flight Details">
-                <DetailItem label="Airline" value={flight.airline_iata} />
-                <DetailItem label="Aircraft" value={flight.aircraft_code} />
-                <DetailItem label="Registration" value={flight.registration} />
-            </Section>
-
-            <Section title="Live Data">
-                <DetailItem label="Altitude" value={flight.altitude.toLocaleString()} unit="ft" />
-                <DetailItem label="Ground Speed" value={flight.ground_speed} unit="kts" />
-                <DetailItem label="Heading" value={(flight.track ?? 0).toFixed(0)} unit="°" />
-                <DetailItem label="Latitude" value={flight.latitude.toFixed(4)} unit="°" />
-                <DetailItem label="Longitude" value={flight.longitude.toFixed(4)} unit="°" />
-            </Section>
-
-            <div className="mt-6">
-                <button 
-                    onClick={handleGetRouteInfo}
-                    disabled={isLoading}
-                    className="w-full flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300"
-                >
-                    <InfoIcon className="w-5 h-5" />
-                    {isLoading ? 'Analyzing Route...' : 'Tell Me About This Route'}
-                </button>
-
-                {error && <p className="text-red-400 text-sm mt-4 text-center">{error}</p>}
-                
-                {geminiInfo && (
-                    <div className="mt-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
-                        <h4 className="font-semibold text-cyan-400 mb-2">Route Insights by Gemini</h4>
-                        <p className="text-sm text-gray-300 leading-relaxed">{geminiInfo}</p>
-                    </div>
-                )}
+        <div className="mt-6 flex-grow overflow-y-auto space-y-6">
+          
+          {/* Route Card */}
+          <div className="p-4 rounded-lg bg-gray-900/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-400">مبدا</p>
+                <p className="text-3xl font-bold">{flight.origin_airport_iata}</p>
+              </div>
+              <div className="text-center pt-5">
+                 <svg className="w-8 h-8 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 12h-6l-2 9-4-18-2 9H2"/>
+                 </svg>
+              </div>
+              <div className="text-left">
+                <p className="text-sm text-gray-400">مقصد</p>
+                <p className="text-3xl font-bold">{flight.destination_airport_iata}</p>
+              </div>
             </div>
+          </div>
+
+          {/* Live Data Card */}
+          <div className="p-4 rounded-lg bg-gray-900/50">
+            <h3 className="text-md font-semibold text-gray-200 mb-3">داده‌های زنده</h3>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+              <InfoItem label="ارتفاع" value={`${flight.altitude.toLocaleString('fa-IR')} فوت`} />
+              <InfoItem label="سرعت زمینی" value={`${flight.ground_speed} نات`} />
+              <InfoItem label="سرعت عمودی" value={`${flight.vertical_speed} فوت/دقیقه`} />
+              <InfoItem label="جهت" value={flight.track ? `${flight.track}°` : 'نامشخص'} />
+              <InfoItem label="عرض جغرافیایی" value={flight.latitude.toFixed(4)} />
+              <InfoItem label="طول جغرافیایی" value={flight.longitude.toFixed(4)} />
+            </div>
+          </div>
+          
+          {/* Aircraft Details Card */}
+          <div className="p-4 rounded-lg bg-gray-900/50">
+             <h3 className="text-md font-semibold text-gray-200 mb-3">جزئیات هواپیما</h3>
+             <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                <InfoItem label="هواپیما" value={flight.aircraft_code} />
+                <InfoItem label="شماره ثبت" value={flight.registration} />
+                <InfoItem label="شرکت هواپیمایی (ICAO)" value={flight.airline_icao} />
+                <InfoItem label="کد ۲۴-بیتی ICAO" value={flight.icao_24bit} />
+                <InfoItem label="کد اسکوک" value={flight.squawk || 'نامشخص'} />
+                <InfoItem label="روی زمین" value={flight.on_ground ? 'بله' : 'خیر'} />
+             </div>
+          </div>
+          
+          {/* Technical Details Card */}
+          <div className="p-4 rounded-lg bg-gray-900/50">
+            <h3 className="text-md font-semibold text-gray-200 mb-3">جزئیات فنی</h3>
+            <div className="grid grid-cols-1 gap-y-3">
+              <InfoItem label="آخرین بروزرسانی موقعیت" value={new Date(flight.timestamp).toLocaleString('fa-IR')} />
+              <InfoItem label="شناسه یکتا" value={flight.unique_key} />
+            </div>
+          </div>
+
+          {/* Gemini Insights Card */}
+          <div className="mt-8 p-4 rounded-lg bg-gray-900/50">
+            <div className="flex items-center gap-2 mb-3">
+              <InfoIcon className="w-5 h-5 text-cyan-400" />
+              <h3 className="text-md font-semibold text-gray-200">اطلاعات مسیر از جمنای</h3>
+            </div>
+            {isLoading && (
+              <div className="flex justify-center items-center h-24">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
+              </div>
+            )}
+            {error && <p className="text-red-400">{error}</p>}
+            {routeInfo && <p className="text-gray-300 text-sm leading-relaxed">{routeInfo}</p>}
+          </div>
         </div>
       </div>
     </div>
