@@ -1,58 +1,58 @@
 import React, { useState, useEffect } from 'react';
-import { AirplaneIcon } from './icons/AirplaneIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { LogoutIcon } from './icons/LogoutIcon';
+import { FilterIcon } from './icons/FilterIcon';
+import { AirplaneIcon } from './icons/AirplaneIcon';
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  onToggleAssistant: () => void;
+  onToggleFilters: () => void;
+  flightCount: number;
+}
+
+const Header: React.FC<HeaderProps> = ({ onToggleAssistant, onToggleFilters, flightCount }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const formattedTime = currentTime.toLocaleTimeString('fa-IR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  });
-
-  const timeZone = `( ${Intl.DateTimeFormat().resolvedOptions().timeZone.replace('/', ' / ')} )`;
+  const timeZone = new Intl.DateTimeFormat('fa-IR', { timeZoneName: 'short' }).formatToParts(currentTime).find(part => part.type === 'timeZoneName')?.value;
 
   return (
-    <header className="w-full bg-gray-900/80 backdrop-blur-sm border-b border-gray-700 z-40 px-6 py-3 flex items-center justify-between flex-shrink-0">
-      {/* Right Side */}
+    <header className="fixed top-0 left-0 right-0 bg-gray-900/70 backdrop-blur-sm h-16 z-30 flex items-center justify-between px-4 border-b border-gray-700">
+      {/* Right Section: Logo and Title */}
       <div className="flex items-center gap-3">
-        <AirplaneIcon className="w-8 h-8 text-cyan-400" />
-        <h1 className="text-xl font-bold text-white tracking-wider hidden sm:block">
-          رهیاب پرواز جمنای
-        </h1>
+        <AirplaneIcon className="w-8 h-8 text-cyan-400 transform -rotate-45" />
+        <h1 className="text-xl font-bold whitespace-nowrap">رهیاب پرواز جمنای</h1>
       </div>
 
-      {/* Center Side */}
-      <div className="flex flex-col items-center">
-        <div className="text-lg font-mono tracking-widest text-gray-200">{formattedTime}</div>
-        <div className="text-xs text-gray-500">{timeZone}</div>
+      {/* Center Section: Time */}
+      <div className="hidden md:flex flex-col items-center">
+        <div className="font-mono text-lg tracking-wider">
+          {currentTime.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+        </div>
+        <div className="text-xs text-gray-400">{timeZone} (به وقت محلی)</div>
       </div>
 
-      {/* Left Side */}
+      {/* Left Section: Actions */}
       <div className="flex items-center gap-2">
-        <button className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-700 transition-colors" aria-label="دستیار">
-          <SparklesIcon className="w-5 h-5 text-yellow-400" />
-          <span className="hidden md:inline text-sm font-medium">دستیار</span>
+         <button onClick={onToggleFilters} className="flex items-center gap-2 p-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-md transition-colors" title="فیلترها">
+          <FilterIcon className="w-5 h-5" />
+          <span className="hidden sm:inline">فیلتر</span>
+          <span className="bg-cyan-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{flightCount.toLocaleString('fa-IR')}</span>
         </button>
-        <button className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-700 transition-colors" aria-label="قوانین">
-          <BookOpenIcon className="w-5 h-5 text-gray-300" />
-           <span className="hidden md:inline text-sm font-medium">قوانین</span>
+        <button onClick={onToggleAssistant} className="flex items-center gap-1 p-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-md transition-colors" title="دستیار">
+          <SparklesIcon className="w-5 h-5" />
+          <span className="hidden sm:inline">دستیار</span>
         </button>
-        <button className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-700 transition-colors" aria-label="خروج">
-          <LogoutIcon className="w-5 h-5 text-red-500" />
-           <span className="hidden md:inline text-sm font-medium">خروج</span>
+        <button className="p-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-md transition-colors" title="قوانین">
+          <BookOpenIcon className="w-5 h-5" />
+        </button>
+        <button className="p-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-md transition-colors" title="خروج">
+          <LogoutIcon className="w-5 h-5" />
         </button>
       </div>
     </header>

@@ -1,152 +1,177 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { Flight } from '../types';
-import { getRouteInfo } from '../services/geminiService';
 import { CloseIcon } from './icons/CloseIcon';
-import { AirplaneIcon } from './icons/AirplaneIcon';
 import { InfoIcon } from './icons/InfoIcon';
+import { getRouteInfo } from '../services/geminiService';
 
 interface FlightInfoPanelProps {
   flight: Flight | null;
   onClose: () => void;
 }
 
-const InfoItem: React.FC<{ label: string; value: string | number }> = ({ label, value }) => (
-  <div>
-    <p className="text-sm text-gray-400">{label}</p>
-    <p className="text-lg font-medium truncate">{value}</p>
-  </div>
-);
-
+// Simple in-memory cache
+const routeInfoCache = new Map<string, string>();
 
 const FlightInfoPanel: React.FC<FlightInfoPanelProps> = ({ flight, onClose }) => {
   const [routeInfo, setRouteInfo] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const resetState = useCallback(() => {
+    setRouteInfo(null);
+    setIsLoading(false);
+    setError(null);
+  }, []);
+
   useEffect(() => {
-    if (flight) {
-      const fetchRouteInfo = async () => {
-        setIsLoading(true);
-        setError(null);
-        setRouteInfo(null);
-        try {
-          const info = await getRouteInfo(flight.origin_airport_iata, flight.destination_airport_iata);
-          setRouteInfo(info);
-        } catch (err) {
-          setError('خطا در دریافت اطلاعات مسیر پرواز.');
-          console.error(err);
-        } finally {
-          setIsLoading(false);
-        }
-      };
+    resetState();
+  }, [flight, resetState]);
+  
+  const fetchRouteInfo = async () => {
+    if (!flight) return;
 
-      fetchRouteInfo();
+    const cacheKey = `${flight.origin_airport_iata}-${flight.destination_airport_iata}`;
+    if (routeInfoCache.has(cacheKey)) {
+        setRouteInfo(routeInfoCache.get(cacheKey)!);
+        return;
     }
-  }, [flight]);
 
-  if (!flight) {
-    return null;
-  }
+    setIsLoading(true);
+    setError(null);
+    try {
+        const info = await getRouteInfo(flight.origin_airport_iata, flight.destination_airport_iata);
+        routeInfoCache.set(cacheKey, info);
+        setRouteInfo(info);
+    } catch (e) {
+        console.error("Error fetching route info from Gemini:", e);
+        setError("خطا در ارتباط با دستیار جمنای. ممکن است به دلیل محدودیت استفاده باشد.");
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+
+  const formatTimestamp = (timestamp: number) => {
+    return new Date(timestamp).toLocaleString('fa-IR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   return (
     <div
-      className={`absolute top-0 left-0 h-full w-full max-w-sm bg-gray-800/80 backdrop-blur-sm shadow-2xl z-30 transform transition-transform duration-300 ease-in-out ${
+      className={`fixed top-0 left-0 h-full w-full max-w-sm bg-gray-900/80 backdrop-blur-sm shadow-2xl z-40 transition-transform duration-300 ease-in-out ${
         flight ? 'translate-x-0' : '-translate-x-full'
       }`}
-      role="dialog"
-      aria-labelledby="flight-info-heading"
-      aria-modal="true"
     >
-      <div className="p-6 h-full flex flex-col">
-        <header className="flex items-center justify-between pb-4 border-b border-gray-600">
-          <div className="flex items-center gap-3">
-            <AirplaneIcon className="w-6 h-6 text-cyan-400" />
-            <h2 id="flight-info-heading" className="text-xl font-semibold">
-              {flight.airline_iata} {flight.callsign}
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-full hover:bg-gray-700 transition-colors"
-            aria-label="بستن پنل اطلاعات پرواز"
-          >
-            <CloseIcon className="w-6 h-6" />
-          </button>
-        </header>
-
-        <div className="mt-6 flex-grow overflow-y-auto space-y-6">
-          
-          {/* Route Card */}
-          <div className="p-4 rounded-lg bg-gray-900/50">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-400">مبدا</p>
-                <p className="text-3xl font-bold">{flight.origin_airport_iata}</p>
-              </div>
-              <div className="text-center pt-5">
-                 <svg className="w-8 h-8 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 12h-6l-2 9-4-18-2 9H2"/>
-                 </svg>
-              </div>
-              <div className="text-left">
-                <p className="text-sm text-gray-400">مقصد</p>
-                <p className="text-3xl font-bold">{flight.destination_airport_iata}</p>
-              </div>
-            </div>
+      {flight && (
+        <div className="flex flex-col h-full text-white p-4">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-4 border-b border-gray-700">
+            <h2 className="text-xl font-bold truncate">جزئیات پرواز {flight.callsign}</h2>
+            <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+              <CloseIcon className="w-6 h-6" />
+            </button>
           </div>
 
-          {/* Live Data Card */}
-          <div className="p-4 rounded-lg bg-gray-900/50">
-            <h3 className="text-md font-semibold text-gray-200 mb-3">داده‌های زنده</h3>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-4">
-              <InfoItem label="ارتفاع" value={`${flight.altitude.toLocaleString('fa-IR')} فوت`} />
-              <InfoItem label="سرعت زمینی" value={`${flight.ground_speed} نات`} />
-              <InfoItem label="سرعت عمودی" value={`${flight.vertical_speed} فوت/دقیقه`} />
-              <InfoItem label="جهت" value={flight.track ? `${flight.track}°` : 'نامشخص'} />
-              <InfoItem label="عرض جغرافیایی" value={flight.latitude.toFixed(4)} />
-              <InfoItem label="طول جغرافیایی" value={flight.longitude.toFixed(4)} />
-            </div>
-          </div>
-          
-          {/* Aircraft Details Card */}
-          <div className="p-4 rounded-lg bg-gray-900/50">
-             <h3 className="text-md font-semibold text-gray-200 mb-3">جزئیات هواپیما</h3>
-             <div className="grid grid-cols-2 gap-x-4 gap-y-4">
-                <InfoItem label="هواپیما" value={flight.aircraft_code} />
-                <InfoItem label="شماره ثبت" value={flight.registration} />
-                <InfoItem label="شرکت هواپیمایی (ICAO)" value={flight.airline_icao} />
-                <InfoItem label="کد ۲۴-بیتی ICAO" value={flight.icao_24bit} />
-                <InfoItem label="کد اسکوک" value={flight.squawk || 'نامشخص'} />
-                <InfoItem label="روی زمین" value={flight.on_ground ? 'بله' : 'خیر'} />
-             </div>
-          </div>
-          
-          {/* Technical Details Card */}
-          <div className="p-4 rounded-lg bg-gray-900/50">
-            <h3 className="text-md font-semibold text-gray-200 mb-3">جزئیات فنی</h3>
-            <div className="grid grid-cols-1 gap-y-3">
-              <InfoItem label="آخرین بروزرسانی موقعیت" value={new Date(flight.timestamp).toLocaleString('fa-IR')} />
-              <InfoItem label="شناسه یکتا" value={flight.unique_key} />
-            </div>
-          </div>
-
-          {/* Gemini Insights Card */}
-          <div className="mt-8 p-4 rounded-lg bg-gray-900/50">
-            <div className="flex items-center gap-2 mb-3">
-              <InfoIcon className="w-5 h-5 text-cyan-400" />
-              <h3 className="text-md font-semibold text-gray-200">اطلاعات مسیر از جمنای</h3>
-            </div>
-            {isLoading && (
-              <div className="flex justify-center items-center h-24">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
+          {/* Content */}
+          <div className="flex-grow py-4 space-y-4 overflow-y-auto">
+            {/* Route */}
+            <div className="bg-gray-800 p-3 rounded-lg">
+              <h3 className="font-bold text-lg mb-2">مسیر</h3>
+              <div className="flex justify-between items-center font-mono text-xl">
+                <span>{flight.origin_airport_iata}</span>
+                <span className="text-gray-400 text-sm">به سمت</span>
+                <span>{flight.destination_airport_iata}</span>
               </div>
-            )}
-            {error && <p className="text-red-400">{error}</p>}
-            {routeInfo && <p className="text-gray-300 text-sm leading-relaxed">{routeInfo}</p>}
+               <div className="mt-3">
+                 <button 
+                   onClick={fetchRouteInfo}
+                   disabled={isLoading}
+                   className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
+                 >
+                   {isLoading ? 'در حال دریافت...' : 'دریافت اطلاعات مسیر با جمنای'}
+                   <InfoIcon className="w-5 h-5"/>
+                 </button>
+                 {error && <p className="text-red-400 text-sm mt-2 text-center">{error}</p>}
+                 {routeInfo && <p className="text-gray-300 text-sm mt-3 bg-gray-700 p-2 rounded">{routeInfo}</p>}
+               </div>
+            </div>
+
+            {/* Live Data */}
+            <div className="bg-gray-800 p-3 rounded-lg">
+                <h3 className="font-bold text-lg mb-2">داده‌های زنده</h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="space-y-1">
+                        <p className="text-gray-400">ارتفاع</p>
+                        <p className="font-mono text-cyan-300">{flight.altitude.toLocaleString('fa-IR')} فوت</p>
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-gray-400">سرعت زمینی</p>
+                        <p className="font-mono text-cyan-300">{flight.ground_speed.toLocaleString('fa-IR')} نات</p>
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-gray-400">سرعت عمودی</p>
+                        <p className="font-mono text-cyan-300">{flight.vertical_speed.toLocaleString('fa-IR')} فوت/دقیقه</p>
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-gray-400">جهت حرکت</p>
+                        <p className="font-mono text-cyan-300">{flight.track ?? 'N/A'} درجه</p>
+                    </div>
+                    <div className="space-y-1 col-span-2">
+                        <p className="text-gray-400">موقعیت جغرافیایی</p>
+                        <p className="font-mono text-cyan-300 text-xs">{flight.latitude.toFixed(4)}, {flight.longitude.toFixed(4)}</p>
+                    </div>
+                </div>
+            </div>
+            
+            {/* Aircraft Details */}
+            <div className="bg-gray-800 p-3 rounded-lg">
+                <h3 className="font-bold text-lg mb-2">جزئیات هواپیما</h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                        <p className="text-gray-400">نوع هواپیما</p>
+                        <p className="font-mono">{flight.aircraft_code}</p>
+                    </div>
+                    <div>
+                        <p className="text-gray-400">شماره ثبت</p>
+                        <p className="font-mono">{flight.registration}</p>
+                    </div>
+                     <div>
+                        <p className="text-gray-400">شرکت هواپیمایی</p>
+                        <p className="font-mono">{flight.airline_iata} / {flight.airline_icao}</p>
+                    </div>
+                     <div>
+                        <p className="text-gray-400">شماره پرواز</p>
+                        <p className="font-mono">{flight.flight_number}</p>
+                    </div>
+                </div>
+            </div>
+
+             {/* Technical Details */}
+             <div className="bg-gray-800 p-3 rounded-lg">
+                <h3 className="font-bold text-lg mb-2">جزئیات فنی</h3>
+                 <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                        <p className="text-gray-400">کد ICAO 24-bit</p>
+                        <p className="font-mono">{flight.icao_24bit}</p>
+                    </div>
+                    <div>
+                        <p className="text-gray-400">کد Squawk</p>
+                        <p className="font-mono">{flight.squawk || 'N/A'}</p>
+                    </div>
+                     <div className="col-span-2">
+                        <p className="text-gray-400">آخرین بروزرسانی</p>
+                        <p className="font-mono text-xs">{formatTimestamp(flight.timestamp)}</p>
+                    </div>
+                 </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
