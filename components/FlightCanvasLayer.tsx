@@ -1,5 +1,4 @@
-// FIX: Import `useCallback` from React to resolve reference error.
-import React, { useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { Flight } from '../types';
@@ -10,152 +9,190 @@ interface FlightCanvasLayerProps {
   selectedFlightId: string | null;
 }
 
-// Create the airplane Path2D object once for performance
+interface DrawnItem {
+    type: 'flight' | 'cluster';
+    center: L.Point; 
+    radius: number;
+    flight?: Flight;
+    clusterFlights?: Flight[];
+    bounds?: L.LatLngBounds; 
+}
+
 const airplanePath = new Path2D("M21 16V14L13 9V3.5C13 2.67 12.33 2 11.5 2C10.67 2 10 2.67 10 3.5V9L2 14V16L10 13V19L8 20.5V22L11.5 21L15 22V20.5L13 19V13L21 16Z");
 
 const drawAirplane = (ctx: CanvasRenderingContext2D, x: number, y: number, rotation: number, isSelected: boolean) => {
-    const size = isSelected ? 26 : 22;
+    const size = 26;
     const color = isSelected ? '#dc2626' : '#facc15'; // Crimson or Yellow
 
     ctx.save();
     
-    // Add a gentle shadow for depth
     ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
     ctx.shadowBlur = 8;
     ctx.shadowOffsetX = 2;
     ctx.shadowOffsetY = 3;
 
     ctx.translate(x, y);
-    ctx.rotate(((rotation ?? 0) * Math.PI) / 180);
+    ctx.rotate((rotation + 90) * Math.PI / 180); 
     
-    // Scale and center the icon from the 24x24 viewBox
-    ctx.scale(size / 24, size / 24);
-    ctx.translate(-12, -12); // Center the icon
-    
+    const scale = size / 24; 
+    ctx.scale(scale, scale);
+    ctx.translate(-12, -12); 
+
     ctx.fillStyle = color;
     ctx.fill(airplanePath);
     
     ctx.restore();
 };
 
+const drawCluster = (ctx: CanvasRenderingContext2D, x: number, y: number, count: number, radius: number) => {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgba(2, 132, 199, 0.7)'; // cyan-600 with opacity
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(14, 165, 233, 1)'; // cyan-500
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 13px Vazirmatn';
+    ctx.fillText(count.toLocaleString('fa-IR'), x, y);
+};
+
 export const FlightCanvasLayer: React.FC<FlightCanvasLayerProps> = ({ flights, onSelectFlight, selectedFlightId }) => {
   const map = useMap();
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const propsRef = useRef({ flights, onSelectFlight, selectedFlightId });
-  propsRef.current = { flights, onSelectFlight, selectedFlightId };
-  
-  const flightsById = useMemo(() => {
-    const map = new Map<string, Flight>();
-    for (const flight of flights) {
-      map.set(flight.unique_key, flight);
-    }
-    return map;
-  }, [flights]);
+  const canvasLayerRef = useRef<any>(null);
 
   const drawFlights = useCallback(() => {
-    if (!canvasRef.current || !map) return;
-    const canvas = canvasRef.current;
+    if (!canvasLayerRef.current) return;
+    const layer = canvasLayerRef.current;
+    const canvas = layer.getCanvas();
     const ctx = canvas.getContext('2d');
+    const drawnItems: DrawnItem[] = [];
+    layer.drawnItems = drawnItems;
+
     if (!ctx) return;
-    
-    const bounds = map.getBounds();
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    const { flights: currentFlights, selectedFlightId: currentSelectedId } = propsRef.current;
-    
-    // Draw non-selected flights first
-    currentFlights.forEach(flight => {
-        if (flight.unique_key === currentSelectedId) return;
-        const latLng = new L.LatLng(flight.latitude, flight.longitude);
-        if (bounds.contains(latLng)) {
-            const point = map.latLngToContainerPoint(latLng);
-            drawAirplane(ctx, point.x, point.y, flight.track ?? 0, false);
-        }
-    });
 
-    // Draw selected flight last to ensure it's on top
-    if (currentSelectedId && flightsById.has(currentSelectedId)) {
-        const selectedFlight = flightsById.get(currentSelectedId)!;
-        const latLng = new L.LatLng(selectedFlight.latitude, selectedFlight.longitude);
-        if (bounds.contains(latLng)) {
-            const point = map.latLngToContainerPoint(latLng);
-            drawAirplane(ctx, point.x, point.y, selectedFlight.track ?? 0, true);
-        }
-    }
-  }, [map, flightsById]);
+    const bounds = map.getBounds();
+    const zoom = map.getZoom();
 
+    const visibleFlights = flights.filter(f => bounds.contains([f.latitude, f.longitude]));
 
-  // Effect for redrawing when data changes
-  useEffect(() => {
-    drawFlights();
-  }, [flights, selectedFlightId, drawFlights]);
+    // Clustering logic
+    const CLUSTER_THRESHOLD = 100;
+    const GRID_SIZE = 100; // pixels
 
-  // Effect for setting up the canvas layer and events. Runs only once.
-  useEffect(() => {
-    if (!map) return;
-
-    const canvas = L.DomUtil.create('canvas', 'leaflet-canvas-layer');
-    canvasRef.current = canvas;
-    const pane = map.getPane('overlayPane');
-    if(pane) {
-      pane.appendChild(canvas);
-    }
-    
-    const onMove = () => {
-        if (!canvasRef.current) return;
-        const currentCanvas = canvasRef.current;
-        const mapSize = map.getSize();
+    if (visibleFlights.length > CLUSTER_THRESHOLD && zoom < 10) {
+        const grid: { [key: string]: Flight[] } = {};
         
-        if (currentCanvas.width !== mapSize.x || currentCanvas.height !== mapSize.y) {
-            currentCanvas.width = mapSize.x;
-            currentCanvas.height = mapSize.y;
-        }
-
-        const topLeft = map.containerPointToLayerPoint([0, 0]);
-        L.DomUtil.setPosition(currentCanvas, topLeft);
-        
-        drawFlights();
-    };
-
-    const onClick = (e: L.LeafletMouseEvent) => {
-        const point = e.containerPoint;
-        let clickedFlight: Flight | null = null;
-        const clickRadius = 20; // Increased radius for easier clicking
-        let minDistance = Infinity;
-
-        const { flights: currentFlights, onSelectFlight: currentOnSelectFlight } = propsRef.current;
-        
-        for (const flight of currentFlights) {
-            const flightPoint = map.latLngToContainerPoint(new L.LatLng(flight.latitude, flight.longitude));
-            const distance = point.distanceTo(flightPoint);
-             
-            if (distance < clickRadius && distance < minDistance) {
-                 clickedFlight = flight;
-                 minDistance = distance;
+        visibleFlights.forEach(flight => {
+            const point = map.latLngToContainerPoint([flight.latitude, flight.longitude]);
+            const key = `${Math.floor(point.x / GRID_SIZE)}_${Math.floor(point.y / GRID_SIZE)}`;
+            if (!grid[key]) {
+                grid[key] = [];
             }
-        }
-        
-        if (clickedFlight) {
-            currentOnSelectFlight(clickedFlight);
-        }
-    };
-    
-    map.on('move', onMove);
-    map.on('resize', onMove);
-    map.on('click', onClick);
+            grid[key].push(flight);
+        });
 
-    onMove(); // Initial draw
+        Object.values(grid).forEach(cluster => {
+            if (cluster.length > 1) {
+                let sumLat = 0, sumLng = 0;
+                cluster.forEach(f => {
+                    sumLat += f.latitude;
+                    sumLng += f.longitude;
+                });
+                const centerLatLng = new L.LatLng(sumLat / cluster.length, sumLng / cluster.length);
+                const centerPoint = map.latLngToContainerPoint(centerLatLng);
+                const radius = Math.min(40, 18 + Math.log2(cluster.length) * 3);
+
+                drawCluster(ctx, centerPoint.x, centerPoint.y, cluster.length, radius);
+                
+                const clusterBounds = L.latLngBounds(cluster.map(f => [f.latitude, f.longitude]));
+
+                drawnItems.push({
+                    type: 'cluster',
+                    center: centerPoint,
+                    radius,
+                    clusterFlights: cluster,
+                    bounds: clusterBounds
+                });
+            } else {
+                const flight = cluster[0];
+                const point = map.latLngToContainerPoint([flight.latitude, flight.longitude]);
+                drawAirplane(ctx, point.x, point.y, flight.track ?? 0, flight.unique_key === selectedFlightId);
+                drawnItems.push({
+                    type: 'flight',
+                    center: point,
+                    radius: 13,
+                    flight
+                });
+            }
+        });
+
+    } else {
+      visibleFlights.forEach(flight => {
+        const point = map.latLngToContainerPoint([flight.latitude, flight.longitude]);
+        drawAirplane(ctx, point.x, point.y, flight.track ?? 0, flight.unique_key === selectedFlightId);
+        drawnItems.push({
+            type: 'flight',
+            center: point,
+            radius: 13,
+            flight
+        });
+      });
+    }
+
+  }, [flights, map, selectedFlightId]);
+
+  useEffect(() => {
+    if (canvasLayerRef.current) {
+        drawFlights();
+    }
+  }, [drawFlights, flights, selectedFlightId]);
+
+
+  useEffect(() => {
+    const Lany = L as any;
+    if (Lany.canvasLayer && !canvasLayerRef.current) {
+      canvasLayerRef.current = Lany.canvasLayer();
+      
+      canvasLayerRef.current.delegate(
+        {
+          onDrawLayer: (info: any) => {
+            drawFlights();
+          },
+          onClick: (event: L.LeafletMouseEvent, data: any) => {
+            const point = event.containerPoint;
+            const clickedItem = canvasLayerRef.current.drawnItems.find((item: DrawnItem) => {
+                const dx = item.center.x - point.x;
+                const dy = item.center.y - point.y;
+                return dx * dx + dy * dy < item.radius * item.radius;
+            });
+
+            if (clickedItem) {
+                if (clickedItem.type === 'flight' && clickedItem.flight) {
+                    onSelectFlight(clickedItem.flight);
+                } else if (clickedItem.type === 'cluster' && clickedItem.bounds) {
+                    map.flyToBounds(clickedItem.bounds, { padding: [50, 50] });
+                }
+            }
+          }
+        }
+      );
+      
+      canvasLayerRef.current.addTo(map);
+    }
 
     return () => {
-        map.off('move', onMove);
-        map.off('resize', onMove);
-        map.off('click', onClick);
-        if (canvasRef.current) {
-            L.DomUtil.remove(canvasRef.current);
-            canvasRef.current = null;
-        }
+      if (canvasLayerRef.current) {
+        canvasLayerRef.current.removeFrom(map);
+        canvasLayerRef.current = null;
+      }
     };
-  }, [map, drawFlights]);
+  }, [map, onSelectFlight, drawFlights]);
 
   return null;
 };

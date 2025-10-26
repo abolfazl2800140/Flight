@@ -4,9 +4,10 @@ import FlightInfoPanel from './components/FlightInfoPanel';
 import Header from './components/Header';
 import AssistantDrawer from './components/AssistantDrawer';
 import FilterDrawer from './components/FilterDrawer';
+import ReportsDrawer from './components/ReportsDrawer';
 import LoadingSpinner from './components/LoadingSpinner';
 import { useFlightData } from './hooks/useFlightData';
-import type { Flight, Filters } from './types';
+import type { Flight, Filters, Report, ReportInput } from './types';
 
 const INITIAL_FILTERS: Filters = {
   minAltitude: 0,
@@ -21,7 +22,9 @@ function App() {
   const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isReportsOpen, setIsReportsOpen] = useState(false);
   const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
+  const [reports, setReports] = useState<Report[]>([]);
 
   const handleSelectFlight = useCallback((flight: Flight) => {
     setSelectedFlight(flight);
@@ -29,6 +32,42 @@ function App() {
 
   const handleClosePanel = useCallback(() => {
     setSelectedFlight(null);
+  }, []);
+  
+  const handleAddReport = useCallback((reportInput: ReportInput) => {
+      const newReport: Report = {
+          _id: `rep_${Date.now()}`,
+          analysis_id: `ba40bd81-${Math.random().toString(16).slice(2)}`,
+          data: {
+              analysis_period_hours: Number(reportInput.hours_back),
+              analysis_timestamp: new Date().toISOString(),
+              final_assessment: {
+                  confidence_level: "medium",
+                  overall_status: "safe",
+              },
+              region: {
+                  area_km2: Math.random() * 1000000,
+                  center: [
+                      (Number(reportInput.lat1) + Number(reportInput.lat2)) / 2,
+                      (Number(reportInput.lng1) + Number(reportInput.lng2)) / 2,
+                  ],
+                  coordinates: {
+                      lat1: Number(reportInput.lat1),
+                      lat2: Number(reportInput.lat2),
+                      lng1: Number(reportInput.lng1),
+                      lng2: Number(reportInput.lng2),
+                  }
+              }
+          },
+          status: "completed",
+          timestamp: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+      };
+      setReports(prev => [newReport, ...prev]);
+  }, []);
+
+  const handleDeleteReport = useCallback((reportId: string) => {
+      setReports(prev => prev.filter(r => r._id !== reportId));
   }, []);
 
   const filteredFlights = useMemo(() => {
@@ -64,6 +103,7 @@ function App() {
       <Header 
         onToggleAssistant={() => setIsAssistantOpen(true)}
         onToggleFilters={() => setIsFilterOpen(true)}
+        onToggleReports={() => setIsReportsOpen(true)}
         flightCount={filteredFlights.length}
       />
       
@@ -89,6 +129,14 @@ function App() {
         filters={filters}
         setFilters={setFilters}
         onReset={() => setFilters(INITIAL_FILTERS)}
+      />
+
+      <ReportsDrawer
+        isOpen={isReportsOpen}
+        onClose={() => setIsReportsOpen(false)}
+        reports={reports}
+        onAddReport={handleAddReport}
+        onDeleteReport={handleDeleteReport}
       />
     </main>
   );

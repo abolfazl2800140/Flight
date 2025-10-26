@@ -8,10 +8,11 @@ import { AirplaneIcon } from './icons/AirplaneIcon';
 interface HeaderProps {
   onToggleAssistant: () => void;
   onToggleFilters: () => void;
+  onToggleReports: () => void;
   flightCount: number;
 }
 
-const Header: React.FC<HeaderProps> = ({ onToggleAssistant, onToggleFilters, flightCount }) => {
+const Header: React.FC<HeaderProps> = ({ onToggleAssistant, onToggleFilters, onToggleReports, flightCount }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -48,8 +49,9 @@ const Header: React.FC<HeaderProps> = ({ onToggleAssistant, onToggleFilters, fli
           <SparklesIcon className="w-5 h-5" />
           <span className="hidden sm:inline">دستیار</span>
         </button>
-        <button className="p-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-md transition-colors" title="قوانین">
+        <button onClick={onToggleReports} className="p-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-md transition-colors" title="گزارشات">
           <BookOpenIcon className="w-5 h-5" />
+           <span className="hidden sm:inline">گزارشات</span>
         </button>
         <button className="p-2 text-gray-300 hover:bg-gray-700 hover:text-white rounded-md transition-colors" title="خروج">
           <LogoutIcon className="w-5 h-5" />
