@@ -1,0 +1,5 @@
+{
+  "name": "Gemini Flight Tracker",
+  "description": "A sleek, real-time flight tracking application inspired by FlightRadar24, built with React and Tailwind CSS. It features a dynamic world map with simulated air traffic and leverages the Gemini API to provide interesting facts about flight routes.",
+  "requestFramePermissions": []
+}
